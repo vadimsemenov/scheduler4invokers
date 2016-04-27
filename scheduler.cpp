@@ -1,12 +1,25 @@
 #include <bits/stdc++.h>
+#include <ext/pb_ds/assoc_container.hpp>
+#include <ext/pb_ds/tree_policy.hpp>
+#include <ext/pb_ds/tag_and_trait.hpp>
 
 using namespace std;
+using namespace __gnu_pbds;
 
 long long rdtsc() {
     long long tmp;
     asm("rdtsc" : "=A"(tmp));
     return tmp;
 }
+
+typedef tree<
+int,
+null_type,
+less<int>,
+rb_tree_tag,
+tree_order_statistics_node_update>
+ordered_set;
+
 
 const int MAXP = 10000;
 const int MAXT = 1000;
@@ -29,7 +42,7 @@ int testT[MAXS]; // время тестирование задачи на тес
 int tested[MAXS]; // кол-во завершённых тестов по решению
 int start[MAXS]; // время, когда запустилось тестирование на текущем тесте
 int failT[MAXS]; // номер теста, на котором повалилось решение
-set<int> sols; // множество ещё не протестированных решений
+ordered_set sols; // множество ещё не протестированных решений
 
 int curT; // текущее время
 int open = 1; // входной поток
@@ -37,7 +50,7 @@ int open = 1; // входной поток
 void readSols() {
     while (1) {
         int curP;
-
+        
         if (!(cin >> curP))
             open = 0;
 
@@ -56,7 +69,7 @@ void readVerds() {
 
         if (solId == -1)
             break;
-
+        
         t++;
 
         string verd;
@@ -64,22 +77,19 @@ void readVerds() {
 
         if (verd[0] == 'R' && sols.find(solId) != sols.end())
             sols.erase(solId);
-    }
+    }                
 }
 
 void writeTests() {
     if (!open)
         return;
     while (t > 0 && sols.size()) {
-        int i = rand() % sols.size(), j = 0;
-        for (int solId : sols)
-            if (j == i) {
-                cout << solId << ' ' << testN[solId]++ << '\n';
-                if (tests[solP[solId]] == testN[solId])
-                    sols.erase(solId);
-                t--;
-                break;
-            } else j++;
+        int i = rand() % sols.size();
+        int solId = *sols.find_by_order(i);
+        cout << solId << ' ' << testN[solId]++ << '\n';
+        if (tests[solP[solId]] == testN[solId])
+            sols.erase(solId);
+        t--;
     }
     cout << "-1 -1\n";
     cout << flush;
@@ -88,9 +98,9 @@ void writeTests() {
 void tick() {
     readSols();
     readVerds();
-    writeTests();
+    writeTests();        
 }
-
+           
 void solve() {
     cin >> t >> p;
     T = t;
@@ -105,7 +115,7 @@ void solve() {
 int main() {
     ios_base::sync_with_stdio(false);
     cin.tie(0);
-    srand(rdtsc());
+    srand(rdtsc());     
     solve();
     return 0;
 }
