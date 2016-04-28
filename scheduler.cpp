@@ -8,96 +8,136 @@ long long rdtsc() {
     return tmp;
 }
 
-const int MAXP = 10000;
-const int MAXT = 1000;
-const int MAXS = 100000;
+int invokers; // кол-во инвокеров
+int freeInvokers; // кол-во свободных инвокеров
+int taskQty; // кол-во задач
 
-int T; // кол-во инвокеров
-int t; // кол-во свободных инвокеров
-int p; // кол-во задач
-
-int tl[MAXP]; // TL задач
-int tests[MAXP]; // кол-во тестов задач
-int aver[MAXP]; // среднее время тестирования задачи
-
-int s; // количество присланных решений
-int curS; // количество непротестированных решений
-
-int solP[MAXS]; // задача, по которой пришло решение
-int testN[MAXS]; // номер следующего теста, на котором надо запустить решение
-int testT[MAXS]; // время тестирование задачи на тестах [0; testN)
-int tested[MAXS]; // кол-во завершённых тестов по решению
-int start[MAXS]; // время, когда запустилось тестирование на текущем тесте
-int failT[MAXS]; // номер теста, на котором повалилось решение
-set<int> sols; // множество ещё не протестированных решений
-
-int curT; // текущее время
+int currentTime; // текущее время
 int open = 1; // входной поток
 
-void readSols() {
-    while (1) {
-        int curP;
+struct Task {
+  size_t tests;
+  long long timeLimit;
+  // int averageTestingTime;
+  // TODO: replace with Fenwick tree on average testing time
+  // (f.get(i) -- remaining average time for tests from ith)
+  // ... or smth better ...
 
+  Task(size_t tests, long long timeLimit): tests(tests), timeLimit(timeLimit) {
+  }
+};
+
+vector<Task> tasks;
+
+struct Solution {
+  size_t taskId;
+  size_t nextTest;
+  size_t tested;
+  long long arrivedAt;
+  long long testingTime;
+
+  Solution(size_t taskId, long long arrivedAt):
+      taskId(taskId), nextTest(0), tested(0), arrivedAt(arrivedAt),
+      testingTime(0) {
+  }
+};
+
+vector<Solution> solutions;
+
+struct SolutionCmp {
+  bool operator()(const size_t lhs, const size_t rhs) const {
+    return estimate(solutions[lhs]) < estimate(solutions[rhs]);
+  }
+
+  // sort by currentTime - arrivedAt + estimatedTime <=> sort by arrivedAt - estimatedTime
+  // TODO: improve
+  long long estimate(const Solution &solution) const {
+    size_t remainingTests = tasks[solution.taskId].tests - solution.nextTest;
+    return solution.arrivedAt - (solution.tested ? solution.testingTime * remainingTests / solution.tested : 0);
+  }
+};
+
+set<size_t, SolutionCmp> scheduledQueue;
+map<pair<size_t, size_t>, long long> startTestingAt;
+
+void readSolutions() {
+    while (open) {
+        int curP;
         if (!(cin >> curP))
             open = 0;
-
         if (!open || curP == -1)
             break;
 
-        solP[s] = curP;
-        sols.insert(s++);
+        size_t solutionId = solutions.size();
+        solutions.emplace_back(solutionId, currentTime);
+        scheduledQueue.insert(solutionId);
     }
 }
 
-void readVerds() {
+void readVerdicts() {
     while (open) {
         int solId, testId;
         cin >> solId >> testId;
-
         if (solId == -1)
             break;
 
-        t++;
+        auto it = startTestingAt.find(make_pair(solId, testId));
+        long long startTime = it->second;
+        startTestingAt.erase(it);
+
+        bool was = scheduledQueue.erase(solId);
+        freeInvokers++;
 
         string verd;
         cin >> verd;
 
-        if (verd[0] == 'R' && sols.find(solId) != sols.end())
-            sols.erase(solId);
+        if (verd[0] == 'O') {
+          solutions[solId].tested++;
+          solutions[solId].testingTime += currentTime - startTime;
+          // TODO: update task fields
+          if (was) scheduledQueue.insert(solId);
+        } // else solution is already erased from scheduledQueue
     }
 }
 
 void writeTests() {
     if (!open)
         return;
-    while (t > 0 && sols.size()) {
-        int i = rand() % sols.size(), j = 0;
-        for (int solId : sols)
-            if (j == i) {
-                cout << solId << ' ' << testN[solId]++ << '\n';
-                if (tests[solP[solId]] == testN[solId])
-                    sols.erase(solId);
-                t--;
-                break;
-            } else j++;
+    while (freeInvokers > 0 && scheduledQueue.size()) {
+      auto it = scheduledQueue.begin();
+      auto id = *it;
+      scheduledQueue.erase(it);
+      size_t testId = solutions[id].nextTest;
+      ++solutions[id].nextTest;
+      --freeInvokers;
+      startTestingAt.emplace(make_pair(id, testId), currentTime);
+      cout << id << ' ' << testId << '\n';
+      if (solutions[id].nextTest < tasks[solutions[id].taskId].tests) {
+        std::cerr << id << ": " << solutions[id].nextTest << ' ' << solutions[id].taskId << ' ' << tasks[solutions[id].taskId].tests << '\n';
+        scheduledQueue.insert(id);
+      }
     }
     cout << "-1 -1\n";
     cout << flush;
 }
 
 void tick() {
-    readSols();
-    readVerds();
+    readSolutions();
+    readVerdicts();
     writeTests();
 }
 
 void solve() {
-    cin >> t >> p;
-    T = t;
-    for (int i = 0; i < p; i++)
-        cin >> tl[i] >> tests[i];
+    cin >> invokers >> taskQty;
+    freeInvokers = invokers;
+    tasks.reserve(taskQty);
+    for (int i = 0; i < taskQty; i++) {
+      int tl, testQty;
+      cin >> tl >> testQty;
+      tasks.emplace_back(testQty, tl);
+    }
 
-    for ( ; open; curT += 10)
+    for ( ; open; currentTime += 10)
         tick();
 }
 
