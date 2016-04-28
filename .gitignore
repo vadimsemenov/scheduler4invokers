@@ -1,3 +1,8 @@
+# Ignore extensionless files
+*
+!/**/
+!*.*
+
 # Compiled Object files
 *.slo
 *.lo
@@ -26,3 +31,6 @@
 *.exe
 *.out
 *.app
+
+# run-crossrun files
+cf-materials/output.txt
